@@ -120,6 +120,60 @@ class RepeatsDBRegion(object): #was PDBRepeats
             self._resseq = _fetcher.get_resseq(pdbId, chain)
         return self._resseq
 
+
+    def _repeat_assignment(self):
+        """For each position in the sequence, determines which repeat covers it
+        (or None for insertions)
+
+        Stops at the end of the last repeat.
+
+        Returns: generator of int
+        """
+        ranges = self.getRepeatPDBRanges()
+
+        if not ranges:
+            return  # no repeats
+
+        pos = 0  # position in sequence
+
+        for unit in range(len(ranges)):
+            for i in range(0, len(ranges[unit]), 2):
+                #TODO use SIFT to translate to seqres coordinates
+                start = ranges[unit][i]
+                end = ranges[unit][i+1]
+
+                # ranges should be sorted
+                assert pos <= start
+                assert pos <= end
+
+                while pos < start:
+                    yield None
+                    pos += 1
+                while pos <= end:
+                    yield unit
+                    pos += 1
+
+    def repeatstr(self, width=None):
+        seq = str(self.resseq.seq)
+        
+        # Map repeats to 1-9, A-Z
+        chars = [chr(o) for o in itertools.chain(
+            range(ord("1"),ord("9")+1),
+            range(ord("A"), ord("Z")+1),
+            range(ord("a"), ord("z")+1))]
+
+        assignment = "".join([chars[i] if i is not None else " " for i in self._repeat_assignment()])
+        assignment += " "*(len(seq)-len(assignment))
+
+        if width is None:
+            return "\n".join((seq,assignment))
+        
+        lines = []
+        for i in range(0, len(seq), width):
+            lines.append(seq[i:(i + width)])
+            lines.append(assignment[i:(i + width)])
+        return "\n".join(lines)
+
     def __len__(self):
         return len(self.units)
 
